@@ -7,12 +7,11 @@
 
 import XCTest
 
-protocol MyProtocol {
-    func myFunc() async -> Int
+protocol NumProvider {
+    func getNum() async -> Int
 }
 
-final class Spy: MyProtocol {
-    var completions: [() -> Void] = []
+final class NumProviderSpy: NumProvider {
     var stream: AsyncStream<Int>? = nil
     var continuation: AsyncStream<Int>.Continuation?
 
@@ -20,7 +19,7 @@ final class Spy: MyProtocol {
         self.stream = AsyncStream { self.continuation = $0 }
     }
 
-    func myFunc() async -> Int {
+    func getNum() async -> Int {
         for await c in stream! {
             return c
         }
@@ -29,35 +28,48 @@ final class Spy: MyProtocol {
 }
 
 final class MySUT {
-    let collaborator: MyProtocol
-    init(collaborator: MyProtocol) {
-        self.collaborator = collaborator
+    let numProvider: NumProvider
+    init(collaborator: NumProvider) {
+        self.numProvider = collaborator
     }
 
-    func getInt() async -> Int {
-        let value = await collaborator.myFunc()
-        if value == 1 {
-            return 7
-        } else {
-            return value
-        }
+    func isSeven() async -> Bool {
+        let value = await numProvider.getNum()
+        return value == 7
     }
 }
 
 final class AsyncTestTests: XCTestCase {
-    func test_returnsSeven_whenSpyReturns1() {
-        let spy = Spy()
+    func test_isSeven_returnsTrue_whenSpyReturnsSeven() {
+        let spy = NumProviderSpy()
         let sut = MySUT(collaborator: spy)
 
         let exp = expectation(description: "Wait for task completion")
         Task {
-            let captured = await sut.getInt()
-            XCTAssertEqual(captured, 7)
+            let captured = await sut.isSeven()
+            XCTAssertTrue(captured)
             exp.fulfill()
         }
 
-        spy.continuation?.yield(1)
+        spy.continuation?.yield(7)
         spy.continuation?.finish()
         wait(for: [exp])
     }
+
+    func test_isSeven_returnsFalse_whenSpyReturnsSix() {
+        let spy = NumProviderSpy()
+        let sut = MySUT(collaborator: spy)
+
+        let exp = expectation(description: "Wait for task completion")
+        Task {
+            let captured = await sut.isSeven()
+            XCTAssertFalse(captured)
+            exp.fulfill()
+        }
+
+        spy.continuation?.yield(6)
+        spy.continuation?.finish()
+        wait(for: [exp])
+    }
+
 }
