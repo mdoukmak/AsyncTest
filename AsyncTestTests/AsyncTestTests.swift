@@ -20,10 +20,11 @@ final class NumProviderSpy: NumProvider {
     }
 
     func getNum() async -> Int {
+        var latest = 0
         for await c in stream! {
-            return c
+            latest = c
         }
-        return -1
+        return latest
     }
 }
 
